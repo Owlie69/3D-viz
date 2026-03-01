@@ -1,4 +1,5 @@
 node_modules/
 dist/
+# docs/ is committed so GitHub Pages can serve the built site
 .DS_Store
 *.local
