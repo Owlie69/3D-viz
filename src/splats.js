@@ -23,7 +23,7 @@ export class SplatGenerator {
       step       = 2,     // sample every N pixels
       oversample = 1,     // splats placed per pixel (sub-pixel jitter for density)
       depthRange = 3.5,   // total z extent of the scene (deeper = more parallax)
-      baseScale  = 0.005, // splat radius at step=1; multiplied by step (+25% vs 0.004)
+      baseScale  = 0.010, // splat radius at step=1; multiplied by step
     } = opts;
 
     const cols = Math.ceil(width  / step);

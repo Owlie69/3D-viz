@@ -237,7 +237,7 @@ export class ModelLoader {
     }
 
     // Scale: uniform based on target density
-    const splatScale = (2.0 / Math.sqrt(TARGET)) * 1.1;
+    const splatScale = (2.0 / Math.sqrt(TARGET)) * 2.2;
     scales.fill(splatScale);
 
     return { positions, colors, scales, count: TARGET };
