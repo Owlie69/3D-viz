@@ -39,7 +39,7 @@ async function processImage(imageData) {
 
   setProgress(60, 'Generating Gaussian splats…');
   await tick();
-  const splats = splatGenerator.generate(imageData, depthMap, { step: 2 });
+  const splats = splatGenerator.generate(imageData, depthMap, { step: 1 });
 
   setProgress(80, `Uploading ${splats.count.toLocaleString()} splats to GPU…`);
   await tick();
@@ -85,7 +85,7 @@ function fileToImageData(file) {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
-      const MAX = 600;
+      const MAX = 380;
       const scale = Math.min(1, MAX / Math.max(img.width, img.height));
       const w = Math.round(img.width  * scale);
       const h = Math.round(img.height * scale);

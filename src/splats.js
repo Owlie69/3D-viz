@@ -22,7 +22,7 @@ export class SplatGenerator {
     const {
       step       = 2,     // sample every N pixels
       depthRange = 2.8,   // total z extent of the scene
-      baseScale  = 0.014, // splat radius at step=1; multiplied by step
+      baseScale  = 0.004, // splat radius at step=1; multiplied by step
     } = opts;
 
     const cols = Math.ceil(width  / step);
