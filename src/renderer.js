@@ -1,13 +1,8 @@
 /**
  * Three.js renderer for 3D Gaussian splats – additive blending edition.
  *
- * Switching to AdditiveBlending eliminates the need for depth-sorting
- * (order-independent compositing), which means we can handle 500k-1M+
- * splats with zero per-frame CPU sort cost.
- *
- * Mouse interaction uses a GPU magnify lens: splats near the cursor scale
- * UP (not pushed away), so there are no dark gaps – the area just looks
- * zoomed-in with a gentle living drift.
+ * Mouse interaction: pure positional wave ripple only — no scale change,
+ * no brightness/colour change, no glow. Just points gently undulating.
  */
 
 import * as THREE from 'three';
@@ -38,26 +33,25 @@ const VERT = /* glsl */ `
     vec2  dir  = dist > 0.001 ? diff / dist : vec2(0.7071, 0.7071);
     vec2  perp = vec2(-dir.y, dir.x);
 
-    float effectiveScale = aScale;
+    // Scale and colour are always unchanged – no visual effect near cursor
     vColor = aColor;
 
     if (uInteracting > 0.01) {
+      // Smooth radial falloff: full effect at cursor, zero at radius 0.35 NDC
       float t    = uInteracting;
-      float core = pow(max(0.0, 1.0 - dist / 0.22), 1.8) * t;
+      float core = pow(max(0.0, 1.0 - dist / 0.35), 2.2) * t;
 
-      // Magnify: splats grow near cursor – fills space, no dark holes
-      float k    = 1.0 + core * 3.2;
-      effectiveScale = aScale * k;
+      // Traveling wave: appears to radiate outward from the cursor position
+      float wave = sin(uTime * 3.5 - dist * 24.0);
 
-      // Area grows as k², so divide alpha by k² to keep additive brightness constant
-      vColor.a = aColor.a / (k * k);
+      // Small transverse component for organic feel
+      float sway = cos(uTime * 2.1 - dist * 17.0) * 0.35;
 
-      // Gentle living drift
-      float wave = sin(uTime * 3.2 + dist * 18.0);
-      viewCenter.xy += (dir * 0.35 + perp * wave * 0.4) * core * 0.009;
+      // Pure positional nudge – amplitude ~0.011 view-space units (invisible at scale)
+      viewCenter.xy += (dir * wave + perp * sway) * core * 0.011;
     }
 
-    viewCenter.xy += position.xy * effectiveScale;
+    viewCenter.xy += position.xy * aScale;
 
     vUV = position.xy;
     gl_Position = projectionMatrix * viewCenter;
