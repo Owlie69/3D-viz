@@ -2,6 +2,7 @@ import './style.css';
 import { DepthEstimator } from './depth.js';
 import { SplatGenerator }  from './splats.js';
 import { SplatRenderer }   from './renderer.js';
+import { ModelLoader }     from './modelLoader.js';
 
 // ── Elements ─────────────────────────────────────────────────────────────────
 
@@ -15,15 +16,60 @@ const demoBtn       = document.getElementById('demo-btn');
 const progressBar   = document.getElementById('progress-bar');
 const progressLabel = document.getElementById('progress-label');
 const splatCountEl  = document.getElementById('splat-count');
+const hudTitle      = document.getElementById('hud-title');
 const backBtn       = document.getElementById('back-btn');
 
 // ── Global state ─────────────────────────────────────────────────────────────
 
 const depthEstimator = new DepthEstimator();
 const splatGenerator = new SplatGenerator();
+const modelLoader    = new ModelLoader();
 let   renderer       = null;
 
 // ── Pipeline ──────────────────────────────────────────────────────────────────
+
+const MODEL_EXTS = new Set(['glb', 'gltf', 'obj']);
+
+function fileExtension(file) {
+  return file.name.split('.').pop().toLowerCase();
+}
+
+async function processFile(file) {
+  if (MODEL_EXTS.has(fileExtension(file))) {
+    return processModel(file);
+  }
+  processImage(await fileToImageData(file));
+}
+
+async function processModel(file) {
+  showScreen(processingScreen);
+  hudTitle.textContent = '3D Gaussian Splats';
+  await tick();
+
+  let splats;
+  try {
+    splats = await modelLoader.load(file, (pct, label) => {
+      setProgress(pct, label);
+    });
+  } catch (err) {
+    setProgress(0, `Error: ${err.message}`);
+    console.error('[ModelLoader]', err);
+    return;
+  }
+
+  setProgress(94, `Uploading ${splats.count.toLocaleString()} splats to GPU…`);
+  await tick();
+
+  if (!renderer) renderer = new SplatRenderer(canvas);
+  renderer.loadSplats(splats);
+  renderer.resetCamera();
+
+  splatCountEl.textContent = `${splats.count.toLocaleString()} splats · 3D model`;
+
+  setProgress(100, 'Done');
+  await tick();
+  showScreen(viewerScreen);
+}
 
 async function processImage(imageData) {
   showScreen(processingScreen);
@@ -174,7 +220,7 @@ function buildDemoImage() {
 fileInput.addEventListener('change', async e => {
   const file = e.target.files[0];
   if (!file) return;
-  processImage(await fileToImageData(file));
+  processFile(file);
 });
 
 dropZone.addEventListener('dragover', e => {
@@ -190,8 +236,10 @@ dropZone.addEventListener('drop', async e => {
   e.preventDefault();
   dropZone.classList.remove('drag-over');
   const file = e.dataTransfer.files[0];
-  if (file && file.type.startsWith('image/')) {
-    processImage(await fileToImageData(file));
+  if (!file) return;
+  const ext = fileExtension(file);
+  if (file.type.startsWith('image/') || MODEL_EXTS.has(ext)) {
+    processFile(file);
   }
 });
 

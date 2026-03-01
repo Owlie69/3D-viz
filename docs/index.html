@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <script type="module" crossorigin src="./assets/index-C6F_QQwt.js"></script>
+  <script type="module" crossorigin src="./assets/index-vUdlbH0M.js"></script>
   <link rel="stylesheet" crossorigin href="./assets/index-hEonYT4c.css">
 </head>
 <body>
@@ -31,8 +31,8 @@
           <line x1="12" y1="3" x2="12" y2="15"/>
         </svg>
       </div>
-      <span class="drop-primary">Drop an image or click to browse</span>
-      <span class="drop-secondary">JPEG · PNG · WebP · GIF</span>
+      <span class="drop-primary">Drop a file or click to browse</span>
+      <span class="drop-secondary">Images: JPEG · PNG · WebP &nbsp;|&nbsp; 3D: GLB · GLTF · OBJ</span>
     </div>
 
     <div class="demo-row">
@@ -40,7 +40,7 @@
       <button class="btn-demo" id="demo-btn">built-in demo scene</button>
     </div>
 
-    <input type="file" id="file-input" accept="image/*" />
+    <input type="file" id="file-input" accept="image/*,.glb,.gltf,.obj" />
   </div>
 
   <!-- ── Processing screen ─────────────────────────────────────────────────── -->
@@ -63,13 +63,13 @@
     <div class="hud">
       <div class="hud-left">
         <div class="hud-dot"></div>
-        <span class="hud-title">3D Gaussian Splats</span>
+        <span class="hud-title" id="hud-title">3D Gaussian Splats</span>
       </div>
       <span class="hud-stat" id="splat-count"></span>
     </div>
 
     <!-- Back -->
-    <button class="btn-back" id="back-btn">← New image</button>
+    <button class="btn-back" id="back-btn">← New file</button>
 
     <!-- Controls legend -->
     <div class="controls-legend">

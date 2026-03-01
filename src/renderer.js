@@ -39,13 +39,18 @@ const VERT = /* glsl */ `
     vec2  perp = vec2(-dir.y, dir.x);
 
     float effectiveScale = aScale;
+    vColor = aColor;
 
     if (uInteracting > 0.01) {
       float t    = uInteracting;
       float core = pow(max(0.0, 1.0 - dist / 0.22), 1.8) * t;
 
       // Magnify: splats grow near cursor – fills space, no dark holes
-      effectiveScale = aScale * (1.0 + core * 3.2);
+      float k    = 1.0 + core * 3.2;
+      effectiveScale = aScale * k;
+
+      // Area grows as k², so divide alpha by k² to keep additive brightness constant
+      vColor.a = aColor.a / (k * k);
 
       // Gentle living drift
       float wave = sin(uTime * 3.2 + dist * 18.0);
@@ -54,8 +59,7 @@ const VERT = /* glsl */ `
 
     viewCenter.xy += position.xy * effectiveScale;
 
-    vUV    = position.xy;
-    vColor = aColor;
+    vUV = position.xy;
     gl_Position = projectionMatrix * viewCenter;
   }
 `;
