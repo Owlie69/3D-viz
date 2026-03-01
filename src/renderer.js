@@ -24,9 +24,8 @@ const VERT = /* glsl */ `
   uniform float uInteracting;  // 0 idle → 1 active (smoothly animated)
   uniform float uTime;
 
-  varying vec2  vUV;
-  varying vec4  vColor;
-  varying float vHighlight;
+  varying vec2 vUV;
+  varying vec4 vColor;
 
   void main() {
     vec4 viewCenter = modelViewMatrix * vec4(aPos, 1.0);
@@ -37,33 +36,22 @@ const VERT = /* glsl */ `
     vec2 diff  = ndc - uMouse;
     float dist = length(diff);
     vec2  dir  = dist > 0.001 ? diff / dist : vec2(0.7071, 0.7071);
-
-    // Perpendicular direction for swirl component
-    vec2 perp = vec2(-dir.y, dir.x);
+    vec2  perp = vec2(-dir.y, dir.x);
 
     float effectiveScale = aScale;
-    vHighlight = 0.0;
 
     if (uInteracting > 0.01) {
-      float t = uInteracting;
+      float t    = uInteracting;
+      float core = pow(max(0.0, 1.0 - dist / 0.22), 1.8) * t;
 
-      // Smooth lens falloff – strongest at cursor, zero at lensRadius
-      float lensRadius = 0.22;
-      float core = pow(max(0.0, 1.0 - dist / lensRadius), 1.8) * t;
-
-      // MAGNIFY: scale splats up so the cursor zone looks zoomed-in.
-      // Splats get bigger → no gaps, image fills the area.
+      // Magnify: splats grow near cursor – fills space, no dark holes
       effectiveScale = aScale * (1.0 + core * 3.2);
 
-      // Gentle living drift: subtle oscillation that doesn't open dark holes.
-      // Displacement is tiny relative to the inflated scale.
+      // Gentle living drift
       float wave = sin(uTime * 3.2 + dist * 18.0);
       viewCenter.xy += (dir * 0.35 + perp * wave * 0.4) * core * 0.009;
-
-      vHighlight = core;
     }
 
-    // Screen-aligned billboard
     viewCenter.xy += position.xy * effectiveScale;
 
     vUV    = position.xy;
@@ -75,20 +63,14 @@ const VERT = /* glsl */ `
 const FRAG = /* glsl */ `
   precision mediump float;
 
-  varying vec2  vUV;
-  varying vec4  vColor;
-  varying float vHighlight;
+  varying vec2 vUV;
+  varying vec4 vColor;
 
   void main() {
-    // Tight Gaussian – crisp refined dots
     float r2    = dot(vUV, vUV);
     float gauss = exp(-r2 * 11.5);
     if (gauss < 0.007) discard;
-
-    // Subtle warm-white lens glow on magnified splats
-    vec3 col = vColor.rgb + vec3(0.08, 0.10, 0.14) * vHighlight * 0.7;
-
-    gl_FragColor = vec4(col, vColor.a * gauss);
+    gl_FragColor = vec4(vColor.rgb, vColor.a * gauss);
   }
 `;
 

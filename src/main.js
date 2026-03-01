@@ -29,32 +29,40 @@ async function processImage(imageData) {
   showScreen(processingScreen);
   await tick();
 
-  setProgress(5, 'Analysing image…');
+  // ── 1. Load ML model (downloads ~98 MB on first visit, cached after) ───
+  setProgress(4, 'Loading AI depth model…');
+  await tick();
+  const mlReady = await depthEstimator.loadModel((frac, file) => {
+    const pct = 4 + Math.round(frac * 38);
+    const name = file.split('/').pop().replace(/\?.*/, '');
+    setProgress(pct, `Downloading depth model… ${Math.round(frac * 100)}%  ${name}`);
+  });
+
+  // ── 2. Depth estimation ────────────────────────────────────────────────
+  setProgress(44, mlReady ? 'Running AI depth estimation…' : 'Estimating depth (heuristic)…');
+  await tick();
+  const depthMap = await depthEstimator.estimate(imageData);
+
+  // ── 3. Generate splats ─────────────────────────────────────────────────
+  setProgress(66, 'Generating Gaussian splats…');
+  await tick();
+  const splats = await runInChunks(() =>
+    splatGenerator.generate(imageData, depthMap, { step: 1 })
+  );
+
+  // ── 4. Upload to GPU ───────────────────────────────────────────────────
+  setProgress(84, `Uploading ${splats.count.toLocaleString()} splats to GPU…`);
   await tick();
 
-  // Depth estimation runs on the main thread; yield so the UI can repaint
-  setProgress(15, 'Estimating depth…');
-  await tick();
-  const depthMap = await runInChunks(() => depthEstimator.estimate(imageData));
-
-  setProgress(60, 'Generating Gaussian splats…');
-  await tick();
-  const splats = splatGenerator.generate(imageData, depthMap, { step: 1 });
-
-  setProgress(80, `Uploading ${splats.count.toLocaleString()} splats to GPU…`);
-  await tick();
-
-  if (!renderer) {
-    renderer = new SplatRenderer(canvas);
-  }
+  if (!renderer) renderer = new SplatRenderer(canvas);
   renderer.loadSplats(splats);
   renderer.resetCamera();
 
-  splatCountEl.textContent = splats.count.toLocaleString() + ' splats';
+  const mode = mlReady ? 'AI depth' : 'heuristic depth';
+  splatCountEl.textContent = `${splats.count.toLocaleString()} splats · ${mode}`;
 
   setProgress(100, 'Done');
   await tick();
-
   showScreen(viewerScreen);
 }
 
