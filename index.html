@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>2D → 3D Gaussian Splats</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <!-- ── Upload screen ─────────────────────────────────────────────────────── -->
+  <div class="screen" id="upload-screen">
+    <div class="hero">
+      <span class="hero-label">ML Experiment · Gaussian Splatting</span>
+      <h1>2D Images<br>to 3D Splats</h1>
+      <p>
+        Upload any photo. A multi-cue depth model lifts it into a volumetric
+        field of 3D Gaussian splats — then fly through it in real time.
+      </p>
+    </div>
+
+    <div class="drop-zone" id="drop-zone">
+      <div class="drop-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+      </div>
+      <span class="drop-primary">Drop an image or click to browse</span>
+      <span class="drop-secondary">JPEG · PNG · WebP · GIF</span>
+    </div>
+
+    <div class="demo-row">
+      <span>No image? Try the</span>
+      <button class="btn-demo" id="demo-btn">built-in demo scene</button>
+    </div>
+
+    <input type="file" id="file-input" accept="image/*" />
+  </div>
+
+  <!-- ── Processing screen ─────────────────────────────────────────────────── -->
+  <div class="screen" id="processing-screen">
+    <div class="process-card">
+      <div class="spinner"></div>
+      <span class="process-title">Processing image</span>
+      <div class="progress-track">
+        <div class="progress-fill" id="progress-bar"></div>
+      </div>
+      <span id="progress-label">Starting…</span>
+    </div>
+  </div>
+
+  <!-- ── Viewer screen ──────────────────────────────────────────────────────── -->
+  <div class="screen" id="viewer-screen">
+    <canvas id="canvas"></canvas>
+
+    <!-- HUD -->
+    <div class="hud">
+      <div class="hud-left">
+        <div class="hud-dot"></div>
+        <span class="hud-title">3D Gaussian Splats</span>
+      </div>
+      <span class="hud-stat" id="splat-count"></span>
+    </div>
+
+    <!-- Back -->
+    <button class="btn-back" id="back-btn">← New image</button>
+
+    <!-- Controls legend -->
+    <div class="controls-legend">
+      <div class="ctrl-row">
+        <span class="ctrl-key">Drag</span>
+        <span class="ctrl-desc">Orbit</span>
+      </div>
+      <div class="ctrl-row">
+        <span class="ctrl-key">Scroll</span>
+        <span class="ctrl-desc">Zoom / fly through</span>
+      </div>
+      <div class="ctrl-row">
+        <span class="ctrl-key">Right drag</span>
+        <span class="ctrl-desc">Pan</span>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
