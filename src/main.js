@@ -85,7 +85,7 @@ function fileToImageData(file) {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
-      const MAX = 380;
+      const MAX = 800;
       const scale = Math.min(1, MAX / Math.max(img.width, img.height));
       const w = Math.round(img.width  * scale);
       const h = Math.round(img.height * scale);

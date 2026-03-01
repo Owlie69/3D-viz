@@ -1,92 +1,128 @@
 /**
  * Monocular depth estimation from a single 2D image.
  *
- * Uses a multi-cue heuristic that combines:
- *   - Laplacian sharpness  (sharp detail = in focus = close)
- *   - Luminance            (bright subjects tend to be foreground)
- *   - Color warmth         (atmospheric perspective: warm = near, cool = far)
- *   - Vertical position    (bottom = near, top = far for typical photos)
+ * Combines six complementary cues – each captures a different physical
+ * property of how photographers and optics create depth:
  *
- * Returns a normalized Float32Array where 0 = far, 1 = close.
+ *  1. Laplacian sharpness  — sharp detail = in-focus = close
+ *  2. Luminance            — bright subjects tend to be foreground
+ *  3. Colour warmth        — atmospheric perspective: warm=near, cool=far
+ *  4. Saturation           — vivid, saturated colours = foreground subject
+ *  5. Vertical position    — horizon/sky at top = far, ground at bottom = near
+ *  6. Centre bias          — subjects are usually framed centrally
+ *
+ * The map is post-processed with edge-aware contrast stretching so the
+ * full 0–1 range is always used, then lightly smoothed.
  */
 export class DepthEstimator {
   estimate(imageData) {
     const { width, height, data } = imageData;
     const n = width * height;
 
-    const lum = new Float32Array(n);
+    // ── Per-pixel cue arrays ───────────────────────────────────────────────
+    const lum  = new Float32Array(n);
     const warm = new Float32Array(n);
+    const sat  = new Float32Array(n);
 
-    // Pass 1: per-pixel luminance and color warmth
     for (let i = 0; i < n; i++) {
-      const r = data[i * 4] / 255;
+      const r = data[i * 4]     / 255;
       const g = data[i * 4 + 1] / 255;
       const b = data[i * 4 + 2] / 255;
+
       lum[i] = 0.299 * r + 0.587 * g + 0.114 * b;
-      // Warm bias: (r+g) vs b, clamped 0-1
-      warm[i] = Math.max(0, Math.min(1, (r * 0.7 + g * 0.3 - b * 0.5 + 0.5)));
+
+      // Warm bias: (r+g mix) vs blue, clamped 0-1
+      warm[i] = Math.max(0, Math.min(1, (r * 0.65 + g * 0.35 - b * 0.55 + 0.5)));
+
+      // Saturation: max channel − min channel
+      const cmax = Math.max(r, g, b), cmin = Math.min(r, g, b);
+      sat[i] = cmax - cmin;
     }
 
-    // Pass 2: Laplacian sharpness (local edge energy = in-focus = close)
+    // ── Sharpness (Laplacian energy) ───────────────────────────────────────
     const sharp = this._laplacianEnergy(lum, width, height);
 
-    // Pass 3: combine cues into a raw closeness map
+    // ── Combine into a single closeness map ───────────────────────────────
     const raw = new Float32Array(n);
+
     for (let y = 0; y < height; y++) {
-      const vert = 1 - y / (height - 1); // 0 at bottom, 1 at top → invert: close at bottom
-      const vertClose = 1 - vert;         // 1 at bottom (close), 0 at top (far)
+      // Vertical: bottom = close (1), top = far (0) – works for landscapes/portraits
+      const vertClose = y / (height - 1);
+
       for (let x = 0; x < width; x++) {
         const i = y * width + x;
+
+        // Centre bias: subjects are usually photographed near the frame centre
+        const cx = 2 * (x / (width  - 1)) - 1;   // −1..1
+        const cy = 2 * (y / (height - 1)) - 1;
+        const centreBias = Math.max(0, 1 - Math.sqrt(cx * cx + cy * cy) * 0.75);
+
         raw[i] =
-          lum[i]    * 0.20 +
-          warm[i]   * 0.20 +
-          sharp[i]  * 0.35 +
-          vertClose * 0.25;
+          sharp[i]    * 0.32 +
+          sat[i]      * 0.18 +
+          lum[i]      * 0.14 +
+          warm[i]     * 0.14 +
+          vertClose   * 0.14 +
+          centreBias  * 0.08;
       }
     }
 
-    // Pass 4: smooth the map so depth transitions are continuous
-    const smooth = this._gaussianBlur(raw, width, height, 6);
+    // ── Contrast stretch to always use the full 0-1 range ─────────────────
+    const stretched = this._contrastStretch(raw);
 
-    // Pass 5: normalize 0-1
+    // ── Light smoothing (preserve edges, remove pixel noise) ──────────────
+    const smooth = this._gaussianBlur(stretched, width, height, 4);
+
     return this._normalize(smooth);
   }
 
   // ── Internal helpers ────────────────────────────────────────────────────────
 
-  /** Laplacian edge energy, normalised 0-1. */
+  /** Laplacian edge energy, normalised 0-1.  Large radius captures broad focus zones. */
   _laplacianEnergy(lum, width, height) {
-    const n = width * height;
+    const n   = width * height;
     const out = new Float32Array(n);
     for (let y = 1; y < height - 1; y++) {
       for (let x = 1; x < width - 1; x++) {
-        const i = y * width + x;
+        const i   = y * width + x;
         const lap =
           -lum[(y - 1) * width + x] +
           -lum[(y + 1) * width + x] +
           -lum[y * width + (x - 1)] +
           -lum[y * width + (x + 1)] +
-          4 * lum[i];
+           4 * lum[i];
         out[i] = Math.abs(lap);
       }
     }
-    // Blur the sharpness map so a sharp region influences its neighbourhood
-    const blurred = this._gaussianBlur(out, width, height, 8);
+    // Blur with larger radius so a sharp region pulls its neighbours close too
+    const blurred = this._gaussianBlur(out, width, height, 10);
     return this._normalize(blurred);
   }
 
-  /** Separable Gaussian blur with a given pixel radius. */
+  /** Spread values so 5th–95th percentile fills 0-1 (robust to outliers). */
+  _contrastStretch(arr) {
+    const sorted = Float32Array.from(arr).sort();
+    const lo = sorted[Math.floor(sorted.length * 0.05)];
+    const hi = sorted[Math.floor(sorted.length * 0.95)];
+    const range = hi - lo || 1;
+    const out = new Float32Array(arr.length);
+    for (let i = 0; i < arr.length; i++) {
+      out[i] = Math.max(0, Math.min(1, (arr[i] - lo) / range));
+    }
+    return out;
+  }
+
   _gaussianBlur(data, width, height, radius) {
     const kernel = this._gaussianKernel(radius);
-    const tmp = this._convolve1D(data, width, height, kernel, true);
-    return this._convolve1D(tmp, width, height, kernel, false);
+    const tmp    = this._convolve1D(data, width, height, kernel, true);
+    return this._convolve1D(tmp,  width, height, kernel, false);
   }
 
   _gaussianKernel(radius) {
-    const size = radius * 2 + 1;
+    const size  = radius * 2 + 1;
     const sigma = radius / 2.5;
-    const k = new Float32Array(size);
-    let sum = 0;
+    const k     = new Float32Array(size);
+    let   sum   = 0;
     for (let i = 0; i < size; i++) {
       const x = i - radius;
       k[i] = Math.exp(-(x * x) / (2 * sigma * sigma));
@@ -98,12 +134,12 @@ export class DepthEstimator {
 
   _convolve1D(data, width, height, kernel, horizontal) {
     const radius = (kernel.length - 1) / 2;
-    const out = new Float32Array(data.length);
+    const out    = new Float32Array(data.length);
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         let sum = 0;
         for (let k = -radius; k <= radius; k++) {
-          const sx = horizontal ? Math.max(0, Math.min(width - 1, x + k)) : x;
+          const sx = horizontal ? Math.max(0, Math.min(width  - 1, x + k)) : x;
           const sy = horizontal ? y : Math.max(0, Math.min(height - 1, y + k));
           sum += data[sy * width + sx] * kernel[k + radius];
         }
@@ -120,7 +156,7 @@ export class DepthEstimator {
       if (v > max) max = v;
     }
     const range = max - min || 1;
-    const out = new Float32Array(arr.length);
+    const out   = new Float32Array(arr.length);
     for (let i = 0; i < arr.length; i++) out[i] = (arr[i] - min) / range;
     return out;
   }

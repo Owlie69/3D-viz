@@ -21,7 +21,7 @@ export class SplatGenerator {
     const { width, height, data } = imageData;
     const {
       step       = 2,     // sample every N pixels
-      depthRange = 2.8,   // total z extent of the scene
+      depthRange = 3.5,   // total z extent of the scene (deeper = more parallax)
       baseScale  = 0.004, // splat radius at step=1; multiplied by step
     } = opts;
 
@@ -63,7 +63,9 @@ export class SplatGenerator {
         colors[idx * 4]     = r;
         colors[idx * 4 + 1] = g;
         colors[idx * 4 + 2] = b;
-        colors[idx * 4 + 3] = a;
+        // Calibrated for additive blending: neighbours barely overlap at step=1
+        // so alpha ≈ 0.90 reproduces original luminance correctly
+        colors[idx * 4 + 3] = a * 0.90;
 
         scales[idx] = scale;
 
