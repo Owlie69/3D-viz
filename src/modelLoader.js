@@ -160,7 +160,7 @@ export class ModelLoader {
     }
 
     // Target splat count (similar density to image pipeline)
-    const TARGET = Math.min(300_000, Math.max(50_000, triangles.length * 20));
+    const TARGET = Math.min(1_000_000, Math.max(150_000, triangles.length * 60));
 
     const positions = new Float32Array(TARGET * 3);
     const colors    = new Float32Array(TARGET * 4);

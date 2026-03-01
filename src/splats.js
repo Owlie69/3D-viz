@@ -21,17 +21,21 @@ export class SplatGenerator {
     const { width, height, data } = imageData;
     const {
       step       = 2,     // sample every N pixels
+      oversample = 1,     // splats placed per pixel (sub-pixel jitter for density)
       depthRange = 3.5,   // total z extent of the scene (deeper = more parallax)
-      baseScale  = 0.004, // splat radius at step=1; multiplied by step
+      baseScale  = 0.005, // splat radius at step=1; multiplied by step (+25% vs 0.004)
     } = opts;
 
     const cols = Math.ceil(width  / step);
     const rows = Math.ceil(height / step);
-    const maxCount = cols * rows;
+    const maxCount = cols * rows * oversample;
 
     const positions = new Float32Array(maxCount * 3);
     const colors    = new Float32Array(maxCount * 4);
     const scales    = new Float32Array(maxCount);
+
+    // Per-splat alpha is divided by oversample so total additive brightness stays correct
+    const alphaScale = 0.90 / oversample;
 
     let idx = 0;
 
@@ -45,31 +49,34 @@ export class SplatGenerator {
         const g = data[pi + 1] / 255;
         const b = data[pi + 2] / 255;
 
-        // depth: 0 = far, 1 = close  →  z: close ≈ 0, far ≈ -depthRange
         const closeness = depthMap[y * width + x];
-        const z = -(1 - closeness) * depthRange;
-
-        // image pixel → [-1,1] NDC, Y flipped
-        const wx = (x / (width  - 1) - 0.5) * 2.0;
-        const wy = -(y / (height - 1) - 0.5) * 2.0;
-
-        // Splats spread slightly with depth so far regions don't gap
         const scale = baseScale * step * (1.0 + (1 - closeness) * 0.6);
 
-        positions[idx * 3]     = wx;
-        positions[idx * 3 + 1] = wy;
-        positions[idx * 3 + 2] = z;
+        for (let s = 0; s < oversample; s++) {
+          // Sub-pixel jitter keeps each splat within the pixel footprint
+          const jx = oversample > 1 ? (Math.random() - 0.5) * step : 0;
+          const jy = oversample > 1 ? (Math.random() - 0.5) * step : 0;
+          const jz = oversample > 1 ? (Math.random() - 0.5) * depthRange * 0.03 : 0;
 
-        colors[idx * 4]     = r;
-        colors[idx * 4 + 1] = g;
-        colors[idx * 4 + 2] = b;
-        // Calibrated for additive blending: neighbours barely overlap at step=1
-        // so alpha ≈ 0.90 reproduces original luminance correctly
-        colors[idx * 4 + 3] = a * 0.90;
+          // depth: 0 = far, 1 = close  →  z: close ≈ 0, far ≈ -depthRange
+          const z = -(1 - closeness) * depthRange + jz;
 
-        scales[idx] = scale;
+          // image pixel → [-1,1] NDC, Y flipped
+          const wx = ((x + jx) / (width  - 1) - 0.5) * 2.0;
+          const wy = -((y + jy) / (height - 1) - 0.5) * 2.0;
 
-        idx++;
+          positions[idx * 3]     = wx;
+          positions[idx * 3 + 1] = wy;
+          positions[idx * 3 + 2] = z;
+
+          colors[idx * 4]     = r;
+          colors[idx * 4 + 1] = g;
+          colors[idx * 4 + 2] = b;
+          colors[idx * 4 + 3] = a * alphaScale;
+
+          scales[idx] = scale;
+          idx++;
+        }
       }
     }
 
